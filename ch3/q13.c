@@ -1,10 +1,10 @@
-/* File:    q9.c
+/* File:    q13.c
  *
  * Purpose:  A program in which multiple MPI processes receive a slice of two vectors (v1,v2)
  * and a escalar (a) and makes: (a*v1) * v2
  * 
- * Compile:  mpicc -g -Wall -o q9 q9.c
- * Usage:    mpiexec -n <number of processes> ./qo9
+ * Compile:  mpicc -g -Wall -o q13 q13.c
+ * Usage:    mpiexec -n <number of processes> ./q13
  *
  * Input:    arrays size, escalar, array elements
  * Output:   Answer vector
