@@ -1,10 +1,10 @@
-/* File:    q9.c
+/* File:    q11_c.c
  *
  * Purpose:  A program in which multiple MPI processes receive a slice of two vectors (v1,v2)
  * and a escalar (a) and makes: (a*v1) * v2
  * 
- * Compile:  mpicc -g -Wall -o q11_b q11_b.c
- * Usage:    mpiexec -n <number of processes> ./q11_b
+ * Compile:  mpicc -g -Wall -o q11_c q11_c.c
+ * Usage:    mpiexec -n <number of processes> ./q11_c
  *
  * Input:    arrays size, escalar, array elements
  * Output:   Answer vector
@@ -13,10 +13,10 @@
 #include <stdlib.h>
 #include <mpi.h>
 #include <string.h>
-#define DEBUG true
+//#define DEBUG true
 
 void Read_vector(char vector_name[], int *local_el, int n, int my_rank, MPI_Comm comm);
-void Send_recv_sum(int *local_el, int my_rank, int comm_sz, MPI_Comm comm);
+void Send_recv_sum(int *local_el, int my_rank, int index, int comm_sz, MPI_Comm comm);
 void Print_answer(int *local_el, int my_rank, int comm_sz, MPI_Comm comm);
 
 int main(void)
@@ -35,7 +35,8 @@ int main(void)
   printf("[DEBUG]: my_rank:%d,local_x:%d\n", my_rank, local_X);
 #endif
 
-  Send_recv_sum(&local_X, my_rank, comm_sz, comm);
+  for (int i = 1; i < comm_sz; i *= 2)
+    Send_recv_sum(&local_X, my_rank, i, comm_sz, comm);
 
   Print_answer(&local_X, my_rank, comm_sz, comm);
 
@@ -60,12 +61,12 @@ void Read_vector(
     for (i = 0; i < n; i++)
       scanf("%d", &vec[i]);
 
-    /*#ifdef DEBUG
+#ifdef DEBUG
     printf("[DEBUG]- Vector %s: \n", vector_name);
     for (int i = 0; i < n; i++)
       printf(" %d", vec[i]);
     printf("\n");
-#endif*/
+#endif
 
     MPI_Scatter(vec, 1, MPI_INT, local_el, 1, MPI_INT, 0, comm);
     free(vec);
@@ -79,24 +80,26 @@ void Read_vector(
 void Send_recv_sum(
     int *local_el /* in */,
     int my_rank /* in */,
+    int index /*in*/,
     int comm_sz /* in */,
     MPI_Comm comm /* in */)
 {
   int local_sum = 0;
-  if (my_rank == 0)
+  if (my_rank < index)
   {
-    local_sum += *local_el;
-    MPI_Send(&local_sum, 1, MPI_INT, my_rank + 1, 0, comm);
+    MPI_Send(local_el, 1, MPI_INT, my_rank + index, 0, comm);
+  }
+  else if (my_rank + index >= comm_sz)
+  {
+    MPI_Recv(&local_sum, 1, MPI_INT, my_rank - index, 0, comm, MPI_STATUS_IGNORE);
+    *local_el += local_sum;
   }
   else
   {
-    MPI_Recv(&local_sum, 1, MPI_INT, my_rank - 1, 0, comm, MPI_STATUS_IGNORE);
-    local_sum += *local_el;
-    if (my_rank < comm_sz - 1)
-    {
-      MPI_Send(&local_sum, 1, MPI_INT, my_rank + 1, 0, comm);
-    }
-    *local_el = local_sum;
+    MPI_Sendrecv(local_el, 1, MPI_INT, my_rank + index, 0,
+                 &local_sum, 1, MPI_INT, my_rank - index, 0, comm,
+                 MPI_STATUS_IGNORE);
+    *local_el += local_sum;
   }
 
 } /*Send_recv_sum*/
