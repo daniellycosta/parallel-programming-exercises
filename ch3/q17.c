@@ -16,9 +16,9 @@
 //#define DEBUG true
 
 void Read_Escalars(int *a, int *n_p, int *local_n_p, int my_rank, int comm_sz, MPI_Comm comm);
-void Read_vector(char vector_name[], int local_vec[], int n, int local_n, int my_rank, MPI_Comm comm);
+void Read_vector(char vector_name[], int local_vec[], int n, int local_n, int my_rank, MPI_Datatype my_datatype, MPI_Comm comm);
 void Esc_vect_mult(int local_V1[], int local_V2[], int a, int local_y[], int n, int local_n, MPI_Comm comm);
-void Print_answer(int local_vec[], int n, int local_n, int my_rank, MPI_Comm comm);
+void Print_answer(int local_vec[], int n, int local_n, int my_rank, MPI_Datatype my_datatype, MPI_Comm comm);
 
 int main(void)
 {
@@ -29,12 +29,17 @@ int main(void)
   int *local_y;
 
   MPI_Comm comm = MPI_COMM_WORLD;
+  MPI_Datatype my_datatype;
 
   MPI_Init(NULL, NULL);
   MPI_Comm_size(comm, &comm_sz);
   MPI_Comm_rank(comm, &my_rank);
 
   Read_Escalars(&a, &n, &local_n, my_rank, comm_sz, comm);
+
+  MPI_Type_contiguous(local_n, MPI_INT, &my_datatype);
+  MPI_Type_commit(&my_datatype);
+
 #ifdef DEBUG
   if (!my_rank)
     printf("[DEBUG]: \n a:%d, n:%d, local_n:%d\n", a, n, local_n);
@@ -44,8 +49,8 @@ int main(void)
   local_V2 = malloc(local_n * sizeof(int));
   local_y = malloc(local_n * sizeof(int));
 
-  Read_vector("V1", local_V1, n, local_n, my_rank, comm);
-  Read_vector("V2", local_V2, n, local_n, my_rank, comm);
+  Read_vector("V1", local_V1, n, local_n, my_rank, my_datatype, comm);
+  Read_vector("V2", local_V2, n, local_n, my_rank, my_datatype, comm);
 
 #ifdef DEBUG
   printf("[DEBUG] Rank %d: \n V1:", my_rank);
@@ -66,7 +71,7 @@ int main(void)
   printf("\n");
 #endif
 
-  Print_answer(local_y, n, local_n, my_rank, comm);
+  Print_answer(local_y, n, local_n, my_rank, my_datatype, comm);
 
   free(local_V1);
   free(local_V2);
@@ -82,6 +87,7 @@ void Read_vector(
     int n /* in  */,
     int local_n /* in  */,
     int my_rank /* in  */,
+    MPI_Datatype type,
     MPI_Comm comm /* in  */)
 {
   int *vec = NULL;
@@ -100,13 +106,13 @@ void Read_vector(
     printf("\n");
 #endif
 
-    MPI_Scatter(vec, local_n, MPI_INT, local_vec, local_n, MPI_INT, 0, comm);
+    MPI_Scatter(vec, local_n, type, local_vec, local_n, type, 0, comm);
     free(vec);
   }
   else
   {
-    MPI_Scatter(vec, local_n, MPI_INT,
-                local_vec, local_n, MPI_INT, 0, comm);
+    MPI_Scatter(vec, local_n, type,
+                local_vec, local_n, type, 0, comm);
   }
 } /* Read_vector */
 
@@ -155,6 +161,7 @@ void Print_answer(
     int n /* in */,
     int local_n /* in */,
     int my_rank /* in */,
+    MPI_Datatype type,
     MPI_Comm comm /* in */)
 {
   int *answ = NULL;
@@ -170,8 +177,8 @@ void Print_answer(
   if (my_rank == 0)
   {
     answ = malloc(n * sizeof(int));
-    MPI_Gather(local_vec, local_n, MPI_INT,
-               answ, local_n, MPI_INT, 0, comm);
+    MPI_Gather(local_vec, local_n, type,
+               answ, local_n, type, 0, comm);
 
     printf("\nThe Result: \n");
     for (i = 0; i < n; i++)
@@ -181,7 +188,7 @@ void Print_answer(
   }
   else
   {
-    MPI_Gather(local_vec, local_n, MPI_INT,
-               answ, local_n, MPI_INT, 0, comm);
+    MPI_Gather(local_vec, local_n, type,
+               answ, local_n, type, 0, comm);
   }
 } /* Print_answer */
