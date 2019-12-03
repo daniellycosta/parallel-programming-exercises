@@ -76,6 +76,7 @@ void Read_Matrix(
 
     MPI_Send(matrix, 1, type, 1, 0, comm);
   }
+  else if (my_rank == 1)
   {
     MPI_Recv(matrix, 1, type, 0, 0, comm, MPI_STATUS_IGNORE);
   }

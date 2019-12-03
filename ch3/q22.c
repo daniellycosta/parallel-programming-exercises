@@ -1,8 +1,7 @@
-/* File:     q22.c
+/* File:     mpi_trap3.c
  * Purpose:  Use MPI to implement a parallel version of the trapezoidal 
- *           rule.  This version uses collective communications and
- *           MPI derived datatypes to distribute the input data and 
- *           compute the global sum.
+ *           rule.  This version uses collective communications to 
+ *           distribute the input data and compute the global sum.
  *
  * Input:    The endpoints of the interval of integration and the number
  *           of trapezoids
@@ -23,15 +22,12 @@
  *
  * Note:  f(x) is all hardwired.
  *
- * IPP:   Section 3.5 (pp. 117 and ff.)
+ * IPP:   Section 3.4.2 (pp. 104 and ff.)
  */
 #include <stdio.h>
+
 /* We'll be using MPI routines, definitions, etc. */
 #include <mpi.h>
-
-/* Build a derived datatype for distributing the input data */
-void Build_mpi_type(double *a_p, double *b_p, int *n_p,
-                    MPI_Datatype *input_mpi_t_p);
 
 /* Get the input values */
 void Get_input(int my_rank, int comm_sz, double *a_p, double *b_p,
@@ -46,7 +42,6 @@ double f(double x);
 
 int main(void)
 {
-   double start = MPI_Wtime();
    int my_rank, comm_sz, n, local_n;
    double a, b, h, local_a, local_b;
    double local_int, total_int;
@@ -61,6 +56,7 @@ int main(void)
    MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
    Get_input(my_rank, comm_sz, &a, &b, &n);
+   double start = MPI_Wtime();
 
    h = (b - a) / n;       /* h is the same for all processes */
    local_n = n / comm_sz; /* So is the number of trapezoids  */
@@ -85,43 +81,13 @@ int main(void)
    }
 
    /* Shut down MPI */
-   MPI_Finalize();
    double end = MPI_Wtime();
-   printf("Elapsed Time: %f seconds\n", end - start);
+   MPI_Finalize();
+   if (!my_rank)
+      printf("Elapsed Time: %f seconds\n", end - start);
+
    return 0;
 } /*  main  */
-
-/*------------------------------------------------------------------
- * Function:     Build_mpi_type
- * Purpose:      Build a derived datatype so that the three
- *               input values can be sent in a single message.
- * Input args:   a_p:  pointer to left endpoint
- *               b_p:  pointer to right endpoint
- *               n_p:  pointer to number of trapezoids
- * Output args:  input_mpi_t_p:  the new MPI datatype
- */
-void Build_mpi_type(
-    double *a_p /* in  */,
-    double *b_p /* in  */,
-    int *n_p /* in  */,
-    MPI_Datatype *input_mpi_t_p /* out */)
-{
-
-   int array_of_blocklengths[3] = {1, 1, 1};
-   MPI_Datatype array_of_types[3] = {MPI_DOUBLE, MPI_DOUBLE, MPI_INT};
-   MPI_Aint a_addr, b_addr, n_addr;
-   MPI_Aint array_of_displacements[3] = {0};
-
-   MPI_Get_address(a_p, &a_addr);
-   MPI_Get_address(b_p, &b_addr);
-   MPI_Get_address(n_p, &n_addr);
-   array_of_displacements[1] = b_addr - a_addr;
-   array_of_displacements[2] = n_addr - a_addr;
-   MPI_Type_create_struct(3, array_of_blocklengths,
-                          array_of_displacements, array_of_types,
-                          input_mpi_t_p);
-   MPI_Type_commit(input_mpi_t_p);
-} /* Build_mpi_type */
 
 /*------------------------------------------------------------------
  * Function:     Get_input
@@ -133,25 +99,18 @@ void Build_mpi_type(
  *               b_p:  pointer to right endpoint               
  *               n_p:  pointer to number of trapezoids
  */
-void Get_input(
-    int my_rank /* in  */,
-    int comm_sz /* in  */,
-    double *a_p /* out */,
-    double *b_p /* out */,
-    int *n_p /* out */)
+void Get_input(int my_rank, int comm_sz, double *a_p, double *b_p,
+               int *n_p)
 {
-   MPI_Datatype input_mpi_t;
-
-   Build_mpi_type(a_p, b_p, n_p, &input_mpi_t);
 
    if (my_rank == 0)
    {
       printf("Enter a, b, and n\n");
       scanf("%lf %lf %d", a_p, b_p, n_p);
    }
-   MPI_Bcast(a_p, 1, input_mpi_t, 0, MPI_COMM_WORLD);
-
-   MPI_Type_free(&input_mpi_t);
+   MPI_Bcast(a_p, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+   MPI_Bcast(b_p, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+   MPI_Bcast(n_p, 1, MPI_INT, 0, MPI_COMM_WORLD);
 } /* Get_input */
 
 /*------------------------------------------------------------------
@@ -191,7 +150,7 @@ double Trap(
  * Purpose:     Compute value of function to be integrated
  * Input args:  x
  */
-double f(double x /* in */)
+double f(double x)
 {
    return x * x;
 } /* f */
